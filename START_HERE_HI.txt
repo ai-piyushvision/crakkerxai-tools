@@ -1,0 +1,40 @@
+CrakkerX AI — GitHub + Cloudflare Pages deployment (AdSense-ready)
+
+1. Apni website ka local version pehle check karo:
+   npm install
+   npm test
+   npm run build
+   npm run preview
+
+2. GitHub par `crakkerxai-tools` empty repository banao aur is folder
+   ke contents upload/push karo (folder itself extra level par nahi).
+
+3. Cloudflare dashboard -> Workers & Pages -> Create application
+   -> Pages -> Connect to Git -> GitHub repo select karo.
+   Production branch: main
+   Build command: npm run build
+   Build output directory: dist
+   (Root directory blank jab project repo root par ho.)
+
+4. Cloudflare ka <project>.pages.dev link test karo. All 8 tools,
+   /ads.txt, /privacy/, /tools/images-to-pdf/ aur downloads test karo.
+
+5. Cloudflare Pages -> Custom domains -> www.crakkerxai.com add karo.
+   GoDaddy DNS mein `www` CNAME ko existing ChatGPT site se hata kar
+   Cloudflare ke exact <project>.pages.dev hostname par switch karo.
+   IMPORTANT: DNS switch tabhi jab preview correctly working ho.
+   Search Console TXT/MX/NS/email DNS records ko mat badlo.
+
+6. AdSense -> Sites -> crakkerxai.com -> Meta tag -> Verify ->
+   Request review. Approval Ready hone ke baad ads eligible honge.
+   Existing publisher tag + ads.txt already project mein included hai.
+   AdSense Display ad unit slot banake Cloudflare Pages production
+   environment variable VITE_ADSENSE_SLOT_ID set karo; redeploy.
+
+7. 60-second mandatory ads before download AdSense policy ke khilaf
+   hain. Conversion ke baad ads alag labeled section mein load honge;
+   download link turant kaam karega, bina ad click/wait ke.
+
+IMPORTANT: This is a recreation of the screenshot design; original
+ChatGPT Sites source code was not available. Preview all functions.
+Full details: docs/DEPLOY_GITHUB_CLOUDFLARE_HI.md

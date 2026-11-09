@@ -1,0 +1,21 @@
+{
+  "name": "crakkerxai-tools",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CrakkerX AI — privacy-first PDF and image tools",
+  "scripts": {
+    "prepare:pages": "node scripts/generate-pages.mjs",
+    "dev": "npm run prepare:pages && vite --host 0.0.0.0",
+    "build": "npm run prepare:pages && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {"node": ">=20.19.0"},
+  "dependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "4.10.38",
+    "jszip": "3.10.1"
+  },
+  "devDependencies": {"vite": "6.3.5"}
+}

@@ -1,0 +1,21 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {parsePageRanges, formatBytes, safeName, baseName, assertFiles, clampSize, outputName} from '../src/utils.mjs';
+
+test('parse single page',()=>assert.deepEqual(parsePageRanges('2',4),[1]));
+test('parse ranges in selected order',()=>assert.deepEqual(parsePageRanges('4,1-2',5),[3,0,1]));
+test('ignore repeated page numbers',()=>assert.deepEqual(parsePageRanges('1,1,1-2,2',4),[0,1]));
+test('all pages by blank input',()=>assert.deepEqual(parsePageRanges('',3),[0,1,2]));
+test('all pages explicitly',()=>assert.deepEqual(parsePageRanges('ALL',2),[0,1]));
+test('reject invalid page range',()=>assert.throws(()=>parsePageRanges('2-1',5),/range/i));
+test('reject page out of bounds',()=>assert.throws(()=>parsePageRanges('6',4),/between/i));
+test('reject unexpected text',()=>assert.throws(()=>parsePageRanges('hi',4),/Enter pages/));
+test('reject PDF with zero pages',()=>assert.throws(()=>parsePageRanges('1',0),/no pages/i));
+test('format file sizes',()=>{assert.equal(formatBytes(127),'127 B');assert.equal(formatBytes(1024),'1 KB');});
+test('escape potentially invalid filenames',()=>assert.equal(safeName('a<b>.jpg'),'a_b_.jpg'));
+test('preserve base names',()=>{assert.equal(baseName('file.name.pdf'),'file.name');assert.equal(outputName({name:'cat.JPG'},'webp'),'cat.webp');});
+test('allow 50 MB or fewer input',()=>assert.doesNotThrow(()=>assertFiles([{name:'a.pdf',type:'application/pdf',size:52_428_800}],'pdf')));
+test('reject more than 50 MB',()=>assert.throws(()=>assertFiles([{name:'a.pdf',type:'application/pdf',size:52_428_801}],'pdf'),/50 MB/));
+test('reject non-PDF',()=>assert.throws(()=>assertFiles([{name:'test.txt',size:100,type:'text/plain'}],'pdf'),/not a PDF/));
+test('reject unsupported image',()=>assert.throws(()=>assertFiles([{name:'test.gif',size:100,type:'image/gif'}],'image'),/not a supported image/));
+test('allow supported image',()=>assert.doesNotThrow(()=>assertFiles([{name:'test.webp',size:100,type:'image/webp'}],'image')));
+test('dimension bounds',()=>{assert.equal(clampSize('1200'),1200);assert.throws(()=>clampSize('0'),/1 to 12000/);assert.throws(()=>clampSize('12001'),/1 to 12000/);});
