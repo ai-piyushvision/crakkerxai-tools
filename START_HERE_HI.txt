@@ -1,40 +1,63 @@
-CrakkerX AI — GitHub + Cloudflare Pages deployment (AdSense-ready)
+CrakkerXworld.AI — AUTH + PRICING + PAYMENT UPGRADE
+==============================================
 
-1. Apni website ka local version pehle check karo:
+1. Ye previous 8-working-tool website ka updated source hai.
+2. Existing GitHub repo aur Cloudflare Worker ko replace nahi karna.
+3. ZIP ke andar 'crakkerxai-github-ready' folder ki FILES existing
+   D:\Crakker.AI\crakkerxai-github-ready mein merge karo (overwrite yes).
+   NOTE: hidden .git folder safe rahega; koi credentials ZIP mein nahi hain.
+4. CMD:
+   cd /d D:\Crakker.AI\crakkerxai-github-ready
    npm install
    npm test
    npm run build
-   npm run preview
+   npm run dev
+5. Browser:
+   http://localhost:5173/
+   http://localhost:5173/pricing/
+   http://localhost:5173/account/
+6. 8 tools + download flow test karo; login bina Supabase ke disabled hoga.
+7. Live configuration ke liye docs/LOGIN_PAYMENTS_SETUP_HI.md follow karo.
+8. GitHub push:
+   git add .
+   git commit -m "Add login signup pricing and secure payments"
+   git push origin main
+9. Cloudflare deploy phir check karo:
+   https://www.crakkerxai.com/
+   https://www.crakkerxai.com/pricing/
+   https://www.crakkerxai.com/account/
+   https://www.crakkerxai.com/ads.txt
 
-2. GitHub par `crakkerxai-tools` empty repository banao aur is folder
-   ke contents upload/push karo (folder itself extra level par nahi).
+PAYMENTS default DISABLED hain. Real signup needs Supabase and real checkout
+needs approved Razorpay account + server secrets + SQL + test transactions.
 
-3. Cloudflare dashboard -> Workers & Pages -> Create application
-   -> Pages -> Connect to Git -> GitHub repo select karo.
-   Production branch: main
-   Build command: npm run build
-   Build output directory: dist
-   (Root directory blank jab project repo root par ho.)
+No automatic monthly billing. Plans are ONE-TIME 30-day access.
+Never show a mandatory 1-minute ad before downloading.
 
-4. Cloudflare ka <project>.pages.dev link test karo. All 8 tools,
-   /ads.txt, /privacy/, /tools/images-to-pdf/ aur downloads test karo.
+Original converters.js was NOT modified in this update.
 
-5. Cloudflare Pages -> Custom domains -> www.crakkerxai.com add karo.
-   GoDaddy DNS mein `www` CNAME ko existing ChatGPT site se hata kar
-   Cloudflare ke exact <project>.pages.dev hostname par switch karo.
-   IMPORTANT: DNS switch tabhi jab preview correctly working ho.
-   Search Console TXT/MX/NS/email DNS records ko mat badlo.
+NEW BRAND + OTP UPDATE (9 Nov 2026)
+================================
+Display brand: CrakkerXworld / CrakkerXworld.AI
+Actual owned domain and GitHub repo stay the same: www.crakkerxai.com and crakkerxai-tools.
 
-6. AdSense -> Sites -> crakkerxai.com -> Meta tag -> Verify ->
-   Request review. Approval Ready hone ke baad ads eligible honge.
-   Existing publisher tag + ads.txt already project mein included hai.
-   AdSense Display ad unit slot banake Cloudflare Pages production
-   environment variable VITE_ADSENSE_SLOT_ID set karo; redeploy.
+Account page: Login / Create account -> Email OTP / Mobile OTP / Password; Google, GitHub remain.
+OTP UI will not send real codes until Supabase project (Email + Phone provider with SMS gateway) is configured.
+For email OTP use Supabase email OTP template {{ .Token }}; for India SMS validate sender/provider DLT requirements.
+Cloudflare Worker settings must have SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY.
+Razorpay checkout stays disabled until test KYC, payment secrets and verified payment flow are configured.
 
-7. 60-second mandatory ads before download AdSense policy ke khilaf
-   hain. Conversion ke baad ads alag labeled section mein load honge;
-   download link turant kaam karega, bina ad click/wait ke.
+Copy updated FILES from this ZIP's crakkerxai-github-ready folder into:
+   D:\Crakker.AI\crakkerxai-github-ready
+Keep your .git folder and any existing local .env file!
 
-IMPORTANT: This is a recreation of the screenshot design; original
-ChatGPT Sites source code was not available. Preview all functions.
-Full details: docs/DEPLOY_GITHUB_CLOUDFLARE_HI.md
+Commands:
+   cd /d D:\Crakker.AI\crakkerxai-github-ready
+   npm install
+   npm test
+   npm run build
+   npm run dev
+Visit http://localhost:5173/ and http://localhost:5173/account/
+Then, after a successful build: git add . && git commit -m "Add OTP login and CrakkerXworld branding" && git push origin main
+
+Docs: docs/LOGIN_PAYMENTS_SETUP_HI.md

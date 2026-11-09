@@ -1,6 +1,6 @@
-# CrakkerX AI — GitHub + Cloudflare Pages website
+# CrakkerXworld.AI — GitHub + Cloudflare Pages website
 
-A screenshot-inspired recreation of CrakkerX AI, with the same overall
+A screenshot-inspired recreation of CrakkerXworld.AI, with the same overall
 cream/dark-green style and eight browser-based file tools. Original ChatGPT
 Sites source was not available, so this is not a verbatim copy.
 
@@ -55,3 +55,18 @@ contains UX and ad mounting logic, `src/styles.css` the responsive design,
 
 This is not a guarantee that every PDF/image will convert successfully.
 Run manual production/browser checks before changing DNS.
+
+---
+
+## Optional user accounts and paid plans (November 2026 update)
+
+The project now includes **`/pricing/`**, **`/account/`**, Google/GitHub OAuth entry points, email/password signup/login and password recovery, a profile dashboard, 30-day plan passes, Cloudflare Worker payment APIs, Razorpay Checkout, signed webhook handling, Supabase database schema, and ad-free paid-user gating. Existing eight conversion algorithms are unchanged.
+
+**Payments are disabled by default.** Nothing charges users until the owner separately sets up Supabase, verifies Google/GitHub OAuth, sets up a Razorpay merchant account and server-side secrets, runs the SQL schema, completes test transactions, publishes support/legal policies and explicitly enables `PAYMENTS_ENABLED=true`.
+
+Full Hinglish setup: [`docs/LOGIN_PAYMENTS_SETUP_HI.md`](docs/LOGIN_PAYMENTS_SETUP_HI.md). Source of prices: [`src/plans.mjs`](src/plans.mjs). Back-end source: [`server/worker.js`](server/worker.js). SQL: [`supabase/schema.sql`](supabase/schema.sql).
+
+> **No recurring debit:** Plan checkout is a one-time purchase of 30 days. **Not production hardened:** Browser-only conversion limits can be bypassed; move premium-only processing server-side before promising enforceable usage restrictions. A security, payment and legal review is required before enabling real charges.
+
+
+Branding note: Display brand CrakkerXworld.AI / CrakkerXworld, live URL www.crakkerxai.com. Mobile OTP needs Supabase Phone provider + SMS provider + relevant India DLT configuration.

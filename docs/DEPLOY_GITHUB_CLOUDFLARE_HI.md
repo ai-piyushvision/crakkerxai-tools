@@ -1,4 +1,4 @@
-# CrakkerX AI — GitHub to Cloudflare Pages deployment
+# CrakkerXworld.AI — GitHub to Cloudflare Pages deployment
 
 ## Why Cloudflare Pages instead of GitHub Pages?
 
@@ -29,7 +29,7 @@ Create an empty GitHub repository such as `crakkerxai-tools`, then:
 ```bat
 git init
 git add .
-git commit -m "CrakkerX AI — Cloudflare Pages release"
+git commit -m "CrakkerXworld.AI — Cloudflare Pages release"
 git branch -M main
 git remote add origin https://github.com/YOUR_USERNAME/crakkerxai-tools.git
 git push -u origin main

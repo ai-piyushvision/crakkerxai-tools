@@ -1,3 +1,7 @@
+import {appConfig,getSession,apiRequest} from './auth-client.js';
+import {initAccountMenu} from './account-menu.js';
+import {getPlan} from './plans.mjs';
+import {initAdvertising,adsPermitted} from './ad-access.js';
 import './styles.css';
 import {formatBytes,assertFiles} from './utils.mjs';
 
@@ -92,7 +96,35 @@ function initConverter(){
     height:$('height')?.value||800,lockAspect:aspect?.checked??true,
     maxDimension:$('maxDimension')?.value||''
   });
-  const mountAd=()=>{
+  const getLimits=async()=>{
+    const config=await appConfig();
+    if(!config.paymentsEnabled)return {enforced:false,plan:getPlan('free'),session:null};
+    const session=await getSession().catch(()=>null);
+    if(!session)return {enforced:true,plan:getPlan('free'),session:null};
+    const info=await apiRequest('/api/me',session.access_token);
+    return {enforced:true,plan:getPlan(info.plan),session};
+  };
+  const checkFileLimits=(policy)=>{
+    if(!policy.enforced)return;
+    const {plan}=policy;
+    if(plan.batch!==null&&files.length>plan.batch)throw new Error(`${plan.label}: maximum ${plan.batch} files per batch. Choose a plan at /pricing/.`);
+    const total=files.reduce((sum,file)=>sum+file.size,0);
+    if(total>plan.maxMB*1024*1024)throw new Error(`${plan.label}: maximum ${plan.maxMB} MB total input per conversion.`);
+  };
+  const consumeUsage=async(policy)=>{
+    if(!policy.enforced||policy.plan.daily===null)return;
+    if(policy.session){
+      await apiRequest('/api/use-quota',policy.session.access_token,{method:'POST'});
+      return;
+    }
+    // Guest limits are convenience limits only. They are not a fraud-resistant boundary.
+    const key=`cx_guest_conversions_${new Date().toISOString().slice(0,10)}`;
+    let count=0;try{count=Number(localStorage.getItem(key)||0)}catch{}
+    if(count>=policy.plan.daily)throw new Error(`Free plan daily limit reached (${policy.plan.daily}). Sign in for paid plans.`);
+    try{localStorage.setItem(key,String(count+1))}catch{}
+  };
+  const mountAd=async()=>{
+    if(!await adsPermitted())return;
     if(adRequested)return;
     // Set the numeric slot using VITE_ADSENSE_SLOT_ID after creating a display ad unit in AdSense.
     const slot=import.meta.env.VITE_ADSENSE_SLOT_ID;
@@ -114,14 +146,16 @@ function initConverter(){
     catch(e){setError(e.message);return;}
     setBusy(true);setProgress('Preparing files…');
     try{
+      const policy=await getLimits();checkFileLimits(policy);
       const {handlers}=await import('./converters.js');
       const output=await handlers[type]([...files],opts(),setProgress);
       if(!output?.blob||output.blob.size===0)throw new Error('The conversion did not produce a valid file.');
+      await consumeUsage(policy);
       url=URL.createObjectURL(output.blob);download.href=url;download.download=output.name;
       $('download-label').textContent=`Download ${output.name}`;
       $('result-status').textContent=`Ready! ${formatBytes(output.bytes)} · Your file stays on your device.`;
       resultBox.classList.remove('hidden');setProgress('');
-      mountAd();
+      void mountAd();
     }catch(e){setProgress('');setError(e?.message||'Conversion failed. Please try a smaller or different file.');}
     finally{setBusy(false);drawList();}
   }
@@ -130,3 +164,7 @@ function initConverter(){
   setBusy(false);
 }
 initCatalog();initConverter();
+void initAccountMenu();
+void initAdvertising();
+if(document.getElementById('plan-cards'))import('./pricing-page.js').then(m=>m.initPricing());
+if(document.getElementById('auth-panel'))import('./account-page.js').then(m=>m.initAccount());
