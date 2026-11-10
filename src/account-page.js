@@ -1,6 +1,7 @@
 import {PLANS,PAID_PLAN_IDS} from './plans.mjs';
 import {appConfig,supabaseClient,getSession,apiRequest} from './auth-client.js';
 import {normalizeOtpEmail,normalizeOtpPhone,normalizeOtpCode,maskOtpDestination} from './otp-utils.mjs';
+import {sendMsg91Otp,resendMsg91Otp,verifyMsg91Otp} from './msg91-widget.js';
 const el=(id)=>document.getElementById(id);
 const hide=(id,hidden=true)=>el(id)?.classList.toggle('hidden',hidden);
 const label=(id,value)=>{if(el(id))el(id).textContent=value;};
@@ -20,6 +21,7 @@ function setMethod(next){
  hide('forgot-password',!(mode==='login'&&isPassword));
  label('auth-submit',isPassword?(mode==='signup'?'Create account':'Log in'):(isPhone?'Send mobile OTP':'Send email OTP'));
  hide('otp-panel');
+ hide('otp-whatsapp');
 }
 function setMode(next){
  mode=next;el('tab-login').classList.toggle('active',mode==='login');el('tab-signup').classList.toggle('active',mode==='signup');
@@ -67,13 +69,22 @@ async function requestOtp(){
  const isPhone=authMethod==='phone-otp';
  const value=isPhone?normalizeOtpPhone(el('auth-phone').value):normalizeOtpEmail(el('auth-email').value);
  const full_name=el('auth-name').value.trim().slice(0,80);
+ if(isPhone){
+  if(!config.msg91Enabled)throw new Error('Mobile OTP is not configured. Please use email OTP for now.');
+  const sent=await sendMsg91Otp(value,config);
+  otpContext={kind:'msg91',value,mode,full_name,reqId:sent.reqId,sentAt:Date.now()};
+  label('otp-target',maskOtpDestination('phone',value));
+  el('otp-code').value='';hide('auth-panel');hide('otp-panel',false);hide('otp-whatsapp',false);
+  notice('SMS OTP requested. If needed, select Resend via WhatsApp.');
+  el('otp-code').focus();return;
+ }
  const options={shouldCreateUser:mode==='signup',data:mode==='signup'&&full_name?{full_name}:{}};
- const request=isPhone?{phone:value,options:{...options,channel:'sms'}}:{email:value,options:{...options,emailRedirectTo:redirectUrl()}};
- const {error}=await client.auth.signInWithOtp(request);if(error)throw error;
- otpContext={kind:isPhone?'phone':'email',value,mode,sentAt:Date.now()};
- label('otp-target',maskOtpDestination(otpContext.kind,value));
- el('otp-code').value='';hide('auth-panel');hide('otp-panel',false);
- notice(isPhone?'SMS OTP requested. Check your phone.':'Email OTP requested. Check your inbox and spam folder.');
+ const {error}=await client.auth.signInWithOtp({email:value,options:{...options,emailRedirectTo:redirectUrl()}});
+ if(error)throw error;
+ otpContext={kind:'email',value,mode,sentAt:Date.now()};
+ label('otp-target',maskOtpDestination('email',value));
+ el('otp-code').value='';hide('auth-panel');hide('otp-panel',false);hide('otp-whatsapp');
+ notice('Email OTP requested. Check your inbox and spam folder.');
  el('otp-code').focus();
 }
 async function verifyOtp(event){
@@ -82,21 +93,33 @@ async function verifyOtp(event){
  const button=el('otp-verify-btn');button.disabled=true;
  try{
   const token=normalizeOtpCode(el('otp-code').value);
-  const input=otpContext.kind==='phone'?{phone:otpContext.value,token,type:'sms'}:{email:otpContext.value,token,type:'email'};
-  const {data,error}=await client.auth.verifyOtp(input);if(error)throw error;
-  if(!data?.session)throw new Error('OTP was not verified. Please try again.');
+  let result;
+  if(otpContext.kind==='msg91'){
+   const accessToken=await verifyMsg91Otp(token,otpContext.reqId);
+   const proof=await apiRequest('/api/auth/msg91',null,{method:'POST',body:{accessToken,signup:otpContext.mode==='signup',fullName:otpContext.full_name||''}});
+   result=await client.auth.verifyOtp({token_hash:proof.tokenHash,type:'magiclink'});
+  }else{
+   result=await client.auth.verifyOtp({email:otpContext.value,token,type:'email'});
+  }
+  if(result.error)throw result.error;
+  if(!result.data?.session)throw new Error('OTP was not verified. Please try again.');
   otpContext=null;window.location.assign('/');return;
  }catch(e){notice(e.message||'Could not verify the OTP.',true);}
  finally{button.disabled=false;}
 }
-async function resendOtp(){
+async function resendOtp(channel='sms'){
  if(!otpContext)return;
  const seconds=Math.ceil((60000-(Date.now()-otpContext.sentAt))/1000);
  if(seconds>0){notice(`Wait ${seconds} seconds before requesting another OTP.`,true);return;}
  try{
-  const {kind,value,mode:otpMode}=otpContext;
-  const request=kind==='phone'?{phone:value,options:{channel:'sms',shouldCreateUser:otpMode==='signup'}}:{email:value,options:{emailRedirectTo:redirectUrl(),shouldCreateUser:otpMode==='signup'}};
-  const {error}=await client.auth.signInWithOtp(request);if(error)throw error;
+  if(otpContext.kind==='msg91'){
+   const sent=await resendMsg91Otp(channel,otpContext.reqId);
+   otpContext.reqId=sent.reqId;otpContext.sentAt=Date.now();
+   notice(channel==='whatsapp'?'WhatsApp OTP requested. Check WhatsApp.':'New SMS OTP requested.');return;
+  }
+  const {value,mode:otpMode}=otpContext;
+  const {error}=await client.auth.signInWithOtp({email:value,options:{emailRedirectTo:redirectUrl(),shouldCreateUser:otpMode==='signup'}});
+  if(error)throw error;
   otpContext.sentAt=Date.now();notice('New OTP requested. Use the latest code.');
  }catch(e){notice(e.message||'Could not resend OTP.',true);}
 }
@@ -178,7 +201,8 @@ export async function initAccount(){
  el('auth-form').addEventListener('submit',authAction);
  for(const method of ['email-otp','phone-otp','password'])el('method-'+method).addEventListener('click',()=>{notice('');setMethod(method);});
  el('otp-form').addEventListener('submit',verifyOtp);
- el('otp-resend').addEventListener('click',resendOtp);
+ el('otp-resend').addEventListener('click',()=>resendOtp('sms'));
+ el('otp-whatsapp').addEventListener('click',()=>resendOtp('whatsapp'));
  el('otp-change').addEventListener('click',()=>{otpContext=null;hide('otp-panel');hide('auth-panel',false);notice('');});
  el('google-login').addEventListener('click',()=>social('google'));
  el('github-login').addEventListener('click',()=>social('github'));

@@ -1,5 +1,6 @@
 /* Cloudflare Worker API: never put payment or Supabase service-role secrets in client JS. */
 import {amountPaise, PAID_PLAN_IDS, getPlan} from '../src/plans.mjs';
+import {phoneAuthConfig,handleMsg91Auth} from './msg91-auth.js';
 const json = (data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const fail = (message,status=400)=>json({error:message},status);
 const enc=new TextEncoder();
@@ -80,9 +81,13 @@ async function handleApi(req,env){
  if(path==='/api/config' && req.method==='GET')return json({
   authEnabled:isSetup(env), paymentsEnabled:isPaymentReady(env),
   supabaseUrl: isSetup(env)?safeUrl(env):'', supabaseAnonKey:isSetup(env)?env.SUPABASE_ANON_KEY:'',
-  razorpayKeyId:isPaymentReady(env)?env.RAZORPAY_KEY_ID:''
+  razorpayKeyId:isPaymentReady(env)?env.RAZORPAY_KEY_ID:'',
+  msg91Enabled:phoneAuthConfig(env).enabled,
+  msg91WidgetId:phoneAuthConfig(env).widgetId,
+  msg91WidgetToken:phoneAuthConfig(env).widgetToken
  });
  if(path==='/api/razorpay/webhook' && req.method==='POST')return webhook(req,env);
+ if(path==='/api/auth/msg91' && req.method==='POST')return handleMsg91Auth(req,env);
  if(!['/api/me','/api/create-order','/api/verify-payment','/api/use-quota'].includes(path))return fail('Not found',404);
  if(!isSetup(env))return fail('Authentication is not configured yet',503);
  const user=await getUser(req,env);
