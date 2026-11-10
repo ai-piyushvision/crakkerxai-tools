@@ -89,6 +89,6 @@ test('OTP registration/login markup and server confirmation checks included',()=
  const html=fs.readFileSync('account/index.html','utf8');
  for(const id of ['method-email-otp','method-phone-otp','method-password','phone-field','otp-form','otp-code','otp-verify-btn','otp-resend'])assert.ok(html.includes(`id="${id}"`),id);
  const account=fs.readFileSync('src/account-page.js','utf8');
- for(const t of ['signInWithOtp','verifyOtp','shouldCreateUser','phone:value'])assert.ok(account.includes(t),t);
+ for(const t of ['signInWithOtp','verifyOtp','shouldCreateUser','sendMsg91Otp'])assert.ok(account.includes(t),t);
  const server=fs.readFileSync('server/worker.js','utf8');assert.ok(server.includes('phone_confirmed_at'));
 });
