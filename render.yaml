@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: crakkerxworld-python-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: CORS_ORIGINS
+        value: https://www.crakkerxai.com,https://crakkerxai.com
+      - key: INTERNAL_API_KEY
+        generateValue: true

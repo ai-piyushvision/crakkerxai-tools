@@ -1,0 +1,68 @@
+CrakkerXworld.AI — PYTHON BACKEND + FRONTEND UPGRADE
+==================================================
+
+IMPORTANT: This ZIP contains the full project source. Extract it to a NEW folder first. Keep your existing Git repository and .env file safe; do not overwrite the .git folder.
+
+LOCAL TEST — TWO TERMINALS
+
+Terminal 1 — Python backend (Windows CMD/PowerShell):
+  cd backend
+  python -m venv .venv
+  .venv\Scripts\activate
+  pip install -r requirements.txt
+  python -m uvicorn app.main:app --reload --port 8000
+
+Terminal 2 — frontend (project root):
+  npm install
+  npm test
+  npm run dev
+
+Open http://localhost:5173
+Python API docs: http://127.0.0.1:8000/docs
+Python health: http://127.0.0.1:8000/health
+
+Test all 8 tools, PDF/image downloads and tool search before deploying.
+
+PRODUCTION DEPLOYMENT
+
+1. Deploy Python API using root render.yaml or backend/Dockerfile.
+2. Test Python API /health and /api/search?q=pdf%20to%20png.
+3. In Cloudflare Worker environment variables, add PYTHON_API_URL=https://YOUR-PYTHON-API-HOST (no trailing slash) and PYTHON_API_SECRET (same value as Python INTERNAL_API_KEY).
+4. Deploy Cloudflare frontend/Worker again.
+5. Verify homepage, all 8 tool pages, conversions, search, account and pricing.
+
+SEO: sitemap is /sitemap.xml. Submit it in Google Search Console and Bing Webmaster Tools after deployment. Indexing/ranking is not instant or guaranteed.
+
+ARCHITECTURE NOTES
+- JavaScript is used for UI and interaction.
+- Python FastAPI handles all 8 conversion endpoints and ML tool search.
+- scikit-learn TF-IDF search is active. No LLM, paid AI API, or neural model download is used.
+- Existing Supabase/Razorpay account/payment endpoints remain Cloudflare Worker JavaScript in this release.
+- Files are uploaded over HTTPS to Python and processed in memory; privacy policy has been updated.
+- Do not push .env files or production secrets to GitHub.
+
+PREMIUM UI + PDF TO IMAGE EXPORT UPDATE
+- Homepage refreshed to premium midnight/dark workspace styling with blue, violet, red and gold accents.
+- Signed-in account view now has a sidebar workspace dashboard, quick tool links, membership and payment history sections.
+- PDF to PNG opens an export dialog before processing:
+    * All pages or one selected page
+    * PNG or JPG output
+    * Optional original PDF included in the same ZIP download
+- Local Vite proxy now forwards /api/tools to the Python FastAPI service.
+
+TESTS RUN FOR THIS UPDATE
+- JavaScript project tests: 46 passed.
+- Python API tests: 9 passed, including all-pages ZIP, single-page JPG and original-PDF bundle.
+- JavaScript/Python syntax checks passed.
+- Vite production build still needs local verification after npm install because Vite dependencies were not installed in the build environment.
+
+
+AUTHENTICATION / PASSWORD REPAIR — 20 NOV 2026
+- Read docs/AUTH_REPAIR_20261120_HI.md before deploying.
+- This website belongs only in the crakkerxai-tools repository and crakkerxai-tools Worker.
+- Re-run the updated supabase/migrations/20261120_account_password_policy.sql in the connected Supabase project (adds authenticated own-row SELECT via RLS). SUPABASE_SERVICE_ROLE_KEY remains required for MSG91 bridge and private paid features, but not for a signed-in user to read their own password policy.
+- Confirm the signed-in account page can load its own policy row. `/api/config` passwordPolicyReady is only the Worker-side preflight; the browser has a safe authenticated RLS fallback.
+- The local automated regression suite for this repair passed 132/132 tests. The Vite production build still needs to be run after npm ci on the repository machine.
+
+
+21 Nov 2026 Auth update: SMS/WhatsApp channel-specific MSG91 setup and Google/GitHub OAuth configuration instructions are in docs/AUTH_PROVIDER_ACTIVATION_20261121_HI.md. Do not expect WhatsApp delivery until its own MSG91 WhatsApp-primary widget is configured in the same account.
