@@ -1,0 +1,13 @@
+# CrakkerXworld.AI — FREE / NO-LLM Python dependencies
+# Python 3.11.x recommended. Install from project root:
+#   python -m pip install --upgrade pip
+#   python -m pip install -r requirements.txt
+#
+# Uses open-source local TF-IDF retrieval and free public RSS/Atom feeds.
+# No OpenAI/Anthropic/Gemini API, LLM, paid model endpoint, or model download.
+-r backend/requirements.txt
+
+# JavaScript is installed separately (pip cannot install npm packages).
+# Node.js >=20.19.0; npm 10+ recommended. Run from project root:
+#   npm ci
+# package.json + package-lock.json lock the exact JS dependency versions.

@@ -1,0 +1,32 @@
+CrakkerXworld.AI Conversion — final login and swipe-arrow fix
+
+RUN LOCALLY
+1. Extract the ZIP into a NEW folder (do not merge with an older version).
+2. Open PowerShell in the extracted project root, the folder containing package.json.
+3. Run:
+   npm ci
+   npm run dev
+4. Open http://localhost:5173/account/ and send Email OTP.
+
+AUTH FIX
+- The Supabase project URL and PUBLIC publishable key are preconfigured in .env.local and in the browser-safe fallback.
+- Cloudflare Worker now reports authEnabled from the public Supabase URL/key, not from the secret service-role key.
+- Ordinary Email OTP/password auth does not require SUPABASE_SERVICE_ROLE_KEY.
+- In Supabase Dashboard, ensure Authentication > Providers > Email is enabled.
+- Authentication > Email Templates should include {{ .Token }} for OTP delivery.
+- Configure SMTP for reliable production email delivery; Supabase's built-in sender has strict limits.
+- Add http://localhost:5173/account/ to Supabase Authentication > URL Configuration > Redirect URLs.
+
+SERVER-SIDE FEATURES
+SUPABASE_SERVICE_ROLE_KEY is still required as a Cloudflare Worker SECRET for private feedback database writes, MSG91-to-Supabase account bridging, and paid membership/payment database operations. Never place it in .env.local, any VITE_ variable, frontend code, or Git.
+
+PURPLE ARROW
+- No large purple arrow asset/DOM element exists in the website source.
+- Added overscroll-behavior-x:none to prevent horizontal edge-swipe browser navigation overlays in browsers that honour this setting.
+- If the browser/OS still displays the gesture UI, disable its swipe-navigation/touchpad gesture or related extension; browser chrome overlays are outside website CSS.
+
+VERIFICATION
+- Page generator checked.
+- JavaScript syntax checked.
+- Automated tests: 67 passed, 0 failed.
+- ZIP archive integrity checked.
