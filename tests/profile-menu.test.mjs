@@ -29,7 +29,7 @@ test('old conversion handler stays present',()=>{
 
 test('fresh login opens the authenticated account dashboard',()=>{
  const account=file('src/account-page.js');
- assert.match(account,/window\.location\.assign\('\/account\/\?view=profile'\)/);
+ assert.match(account,/window\.location\.assign\('\/account\/'\)/);
  assert.doesNotMatch(account,/cx_login_return_home/);
 });
 

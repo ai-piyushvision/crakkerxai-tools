@@ -70,7 +70,6 @@ function initTheme(){
     }
   };
   apply();
-  document.addEventListener('cx:themechange',event=>{const next=event.detail?.theme;if(next==='dark'||next==='light'){theme=next;apply();}});
   button?.addEventListener('click',()=>{theme=theme==='dark'?'light':'dark';try{localStorage.setItem('cx_theme',theme)}catch{}apply()});
 }
 

@@ -44,96 +44,25 @@ async function getUser(req,env){
  if(!response.ok)return null;
  const user=await response.json();return user?.id&&(user?.email_confirmed_at||user?.phone_confirmed_at)?user:null;
 }
-const PASSWORD_HUMAN_HOLD_MS = 1600;
-const PASSWORD_HUMAN_CHALLENGE_TTL_MS = 5 * 60 * 1000;
-async function clientIpHash(req){
- const ip=String(req.headers.get('CF-Connecting-IP')||'unknown').trim();
- const digest=await crypto.subtle.digest('SHA-256',enc.encode(ip));
- return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
-}
-async function createPasswordHumanChallenge(req,env){
- if(req.method!=='POST')return fail('Method not allowed',405);
- if(!isSetup(env))return fail('Human verification is temporarily unavailable. Please try again later.',503);
- try{
-  const ipHash=await clientIpHash(req);
-  const now=Date.now();
-  const recent=await dbRequest(env,`auth_human_challenges?ip_hash=eq.${ipHash}&created_at=gte.${encodeURIComponent(new Date(now-10*60*1000).toISOString())}&select=challenge_id&limit=10`);
-  if((recent||[]).length>=10)return fail('Too many security checks. Please wait a few minutes and try again.',429);
-  // Keep the challenge table small without deleting recent or in-flight checks.
-  await dbRequest(env,`auth_human_challenges?expires_at=lt.${encodeURIComponent(new Date(now-24*60*60*1000).toISOString())}`,{method:'DELETE'});
-  const challengeId=crypto.randomUUID();
-  const createdAt=new Date(now).toISOString();
-  const expiresAt=new Date(now+PASSWORD_HUMAN_CHALLENGE_TTL_MS).toISOString();
-  await dbRequest(env,'auth_human_challenges',{method:'POST',body:{challenge_id:challengeId,ip_hash:ipHash,challenge_type:'pool_hold_confirm',created_at:createdAt,expires_at:expiresAt,used_at:null},prefer:'return=minimal'});
-  return json({challengeId,createdAt,expiresAt,minimumHoldMs:PASSWORD_HUMAN_HOLD_MS,style:'pool-hold-confirm'});
- }catch(error){
-  console.error('Password human challenge creation failed:',String(error?.message||error));
-  return fail('Could not start human verification. Please refresh the check and try again.',503);
- }
-}
-async function consumePasswordHumanChallenge(req,env,payload){
- const challengeId=String(payload?.challengeId||'');
- const heldMs=Number(payload?.heldMs);
- if(!/^[0-9a-f-]{36}$/i.test(challengeId)||!Number.isFinite(heldMs)||heldMs<PASSWORD_HUMAN_HOLD_MS||heldMs>10000){
-  return {ok:false,response:fail('Complete the human check before signing in.',403)};
- }
- const ipHash=await clientIpHash(req);
- const now=Date.now();
- const rows=await dbRequest(env,`auth_human_challenges?challenge_id=eq.${encodeURIComponent(challengeId)}&ip_hash=eq.${ipHash}&challenge_type=eq.pool_hold_confirm&used_at=is.null&expires_at=gt.${encodeURIComponent(new Date(now).toISOString())}&select=challenge_id,created_at,expires_at&limit=1`);
- const challenge=rows?.[0];
- if(!challenge)return {ok:false,response:fail('Human check expired or already used. Please verify again.',403)};
- const createdAt=Date.parse(challenge.created_at);
- if(!Number.isFinite(createdAt)||now-createdAt<PASSWORD_HUMAN_HOLD_MS-100){
-  return {ok:false,response:fail('Keep holding the confirmation control until it completes.',403)};
- }
- const consumed=await dbRequest(env,`auth_human_challenges?challenge_id=eq.${encodeURIComponent(challengeId)}&ip_hash=eq.${ipHash}&used_at=is.null&expires_at=gt.${encodeURIComponent(new Date(now).toISOString())}`,{method:'PATCH',body:{used_at:new Date(now).toISOString()},prefer:'return=representation'});
- if(!Array.isArray(consumed)||consumed.length!==1)return {ok:false,response:fail('Human check has already been used. Please verify again.',409)};
- return {ok:true};
-}
-async function handlePasswordLogin(req,env){
- if(req.method!=='POST')return fail('Method not allowed',405);
- if(!isSetup(env))return fail('Password sign-in is temporarily unavailable. Please try again later.',503);
- let payload;try{payload=await readBody(req);}catch{return fail('Invalid sign-in request.',400);}
- const identityType=String(payload?.identityType||'email');
- const password=String(payload?.password||'');
- if(!password||password.length>256)return fail('Enter your password.',400);
- if(!['email','phone'].includes(identityType))return fail('Choose an email address or mobile number.',400);
- const consumed=await consumePasswordHumanChallenge(req,env,payload);
- if(!consumed.ok)return consumed.response;
- try{
-  let email='';
-  if(identityType==='email'){
-   email=String(payload?.identity||'').trim().toLowerCase();
-   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return fail('Enter a valid email address.',400);
-  }else{
-   const phone=String(payload?.identity||'').replace(/[\s()-]/g,'');
-   if(!/^\+91[6-9]\d{9}$/.test(phone))return fail('Enter a valid mobile number.',400);
-   const rows=await dbRequest(env,`msg91_phone_identities?phone_e164=eq.${encodeURIComponent(phone)}&select=auth_user_id&limit=1`);
-   const userId=rows?.[0]?.auth_user_id;
-   if(!userId)return fail('Mobile number or password is incorrect.',401);
-   const admin=await fetch(`${safeUrl(env)}/auth/v1/admin/users/${encodeURIComponent(userId)}`,{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`},redirect:'manual'});
-   const adminData=await admin.json().catch(()=>null);const authUser=adminData?.user||adminData;
-   if(!admin.ok||!authUser?.email)return fail('Mobile number or password is incorrect.',401);
-   email=String(authUser.email).trim().toLowerCase();
-  }
-  const login=await fetch(`${safeUrl(env)}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:publicSupabase(env).key,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({email,password}),redirect:'manual'});
-  const authData=await login.json().catch(()=>null);
-  if(!login.ok||!authData?.access_token||!authData?.refresh_token)return fail('Email, mobile number or password is incorrect.',401);
-  return json({access_token:authData.access_token,refresh_token:authData.refresh_token,expires_in:authData.expires_in,token_type:authData.token_type||'bearer'});
- }catch(error){
-  console.error('Password sign-in failed after human check:',String(error?.message||error));
-  return fail('Sign-in is temporarily unavailable. Please try again.',503);
- }
-}
-
 async function handlePhonePasswordLogin(req,env){
- // Backwards-compatible alias. The common handler still requires a fresh,
- // server-issued human challenge before it will attempt password authentication.
- const payload=await readBody(req).catch(()=>null);
- if(!payload)return fail('Invalid sign-in request.',400);
- return handlePasswordLogin(new Request(req.url,{method:'POST',headers:req.headers,body:JSON.stringify({...payload,identityType:'phone',identity:payload.identity||payload.phone})}),env);
+ if(!isSetup(env))return fail('Mobile password sign-in is not configured. Apply the account security migration and configure the Worker.',503);
+ let payload;try{payload=await readBody(req);}catch{return fail('Invalid sign-in request.',400);}
+ const phone=String(payload?.phone||'').replace(/[\s()-]/g,'');
+ const password=String(payload?.password||'');
+ if(!/^\+91[6-9]\d{9}$/.test(phone)||password.length<1||password.length>256)return fail('Enter a valid mobile number and password.',400);
+ try{
+  const rows=await dbRequest(env,`msg91_phone_identities?phone_e164=eq.${encodeURIComponent(phone)}&select=auth_user_id&limit=1`);
+  const userId=rows?.[0]?.auth_user_id;
+  if(!userId)return fail('Mobile number or password is incorrect.',401);
+  const admin=await fetch(`${safeUrl(env)}/auth/v1/admin/users/${encodeURIComponent(userId)}`,{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`},redirect:'manual'});
+  const adminData=await admin.json().catch(()=>null);const authUser=adminData?.user||adminData;
+  if(!admin.ok||!authUser?.email)return fail('Mobile number or password is incorrect.',401);
+  const login=await fetch(`${safeUrl(env)}/auth/v1/token?grant_type=password`,{method:'POST',headers:{apikey:publicSupabase(env).key,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({email:authUser.email,password}),redirect:'manual'});
+  const authData=await login.json().catch(()=>null);
+  if(!login.ok||!authData?.access_token||!authData?.refresh_token)return fail('Mobile number or password is incorrect.',401);
+  return json({access_token:authData.access_token,refresh_token:authData.refresh_token,expires_in:authData.expires_in,token_type:authData.token_type||'bearer'});
+ }catch(error){console.error('Mobile password sign-in failed:',String(error?.message||error));return fail('Mobile sign-in is temporarily unavailable. Please try again.',503);}
 }
-
 async function getPasswordPolicy(env,userId){
  if(!isSetup(env))throw new Error('SUPABASE_SERVICE_ROLE_KEY is missing from the Cloudflare Worker secrets.');
  let rows;
@@ -279,55 +208,6 @@ async function handleFeedback(req,env){
 }
 
 
-const ACCOUNT_PREFERENCE_DEFAULTS = Object.freeze({
- theme: 'dark',
- font_size: 'normal',
- notifications_security: true,
- notifications_product: true,
- notifications_email: true,
- location_enabled: false,
- reduced_motion: false
-});
-const ACCOUNT_PREFERENCE_FIELDS = Object.keys(ACCOUNT_PREFERENCE_DEFAULTS);
-function cleanAccountPreferences(row={}){
- const result={...ACCOUNT_PREFERENCE_DEFAULTS};
- if(row.theme==='light'||row.theme==='dark')result.theme=row.theme;
- if(['small','normal','large','extra-large'].includes(row.font_size))result.font_size=row.font_size;
- for(const key of ACCOUNT_PREFERENCE_FIELDS){
-  if(key==='theme'||key==='font_size')continue;
-  if(typeof row[key]==='boolean')result[key]=row[key];
- }
- return result;
-}
-async function handleAccountPreferences(req,env,user){
- if(!isSetup(env))return fail('Account settings are temporarily unavailable. Please try again later.',503);
- if(req.method==='GET'){
-  const rows=await dbRequest(env,`account_preferences?user_id=eq.${encodeURIComponent(user.id)}&select=theme,font_size,notifications_security,notifications_product,notifications_email,location_enabled,reduced_motion&limit=1`);
-  return json({preferences:cleanAccountPreferences(rows?.[0]||{})});
- }
- if(req.method!=='PATCH'&&req.method!=='PUT')return fail('Method not allowed',405);
- let payload;try{payload=await readBody(req);}catch{return fail('Invalid settings request.',400);}
- const incoming=payload?.preferences&&typeof payload.preferences==='object'?payload.preferences:payload;
- const patch={user_id:user.id,updated_at:new Date().toISOString()};
- if(Object.hasOwn(incoming||{},'theme')){
-  if(!['dark','light'].includes(incoming.theme))return fail('Choose Morning Mode or Night Mode.',400);
-  patch.theme=incoming.theme;
- }
- if(Object.hasOwn(incoming||{},'font_size')){
-  if(!['small','normal','large','extra-large'].includes(incoming.font_size))return fail('Choose a supported font size.',400);
-  patch.font_size=incoming.font_size;
- }
- for(const key of ['notifications_security','notifications_product','notifications_email','location_enabled','reduced_motion']){
-  if(Object.hasOwn(incoming||{},key)){
-   if(typeof incoming[key]!=='boolean')return fail(`Invalid ${key} setting.`,400);
-   patch[key]=incoming[key];
-  }
- }
- if(Object.keys(patch).length<=2)return fail('No supported settings were supplied.',400);
- const rows=await dbRequest(env,'account_preferences?on_conflict=user_id',{method:'POST',body:patch,prefer:'resolution=merge-duplicates,return=representation'});
- return json({saved:true,preferences:cleanAccountPreferences(rows?.[0]||patch)});
-}
-
 async function handleIdentityStatus(env,user){
  if(!isSetup(env))return fail('Account linking is not configured. Apply the unified identity migration.',503);
  const rows=await dbRequest(env,`msg91_phone_identities?auth_user_id=eq.${encodeURIComponent(user.id)}&select=phone_e164&limit=1`);
@@ -359,15 +239,12 @@ async function handleApi(req,env){
  if(path==='/api/razorpay/webhook' && req.method==='POST')return webhook(req,env);
  if(path==='/api/auth/msg91' && req.method==='POST')return handleMsg91Auth(req,env);
  if(path==='/api/auth/msg91/prepare-signup' && req.method==='POST')return prepareMsg91Signup(req,env);
- if(path==='/api/auth/password-human-challenge' && req.method==='POST')return createPasswordHumanChallenge(req,env);
- if(path==='/api/auth/password-login' && req.method==='POST')return handlePasswordLogin(req,env);
  if(path==='/api/auth/phone-password' && req.method==='POST')return handlePhonePasswordLogin(req,env);
- if(!['/api/account/preferences','/api/me','/api/create-order','/api/verify-payment','/api/use-quota','/api/auth/password-policy','/api/auth/verify-current-password','/api/auth/identity-status','/api/auth/msg91/link-signup'].includes(path))return fail('Not found',404);
+ if(!['/api/me','/api/create-order','/api/verify-payment','/api/use-quota','/api/auth/password-policy','/api/auth/verify-current-password','/api/auth/identity-status','/api/auth/msg91/link-signup'].includes(path))return fail('Not found',404);
  if(!isAuthReady(env))return fail('Supabase authentication is not configured yet. Check the project URL and publishable/anon key.',503);
  const user=await getUser(req,env);
  if(!user)return fail('Please sign in again and verify your email or mobile number.',401);
  if(path==='/api/auth/verify-current-password')return verifyCurrentPassword(req,env,user);
- if(path==='/api/account/preferences')return handleAccountPreferences(req,env,user);
  if(path==='/api/auth/identity-status' && req.method==='GET'){
   try{return await handleIdentityStatus(env,user);}
   catch(error){console.error('Account identity status unavailable:',String(error?.message||error));return fail('Could not load your linked sign-in methods. Please refresh and try again.',503);}
@@ -381,17 +258,13 @@ async function handleApi(req,env){
   }
  }
  if(path==='/api/me' && req.method==='GET'){
-  const fullName=String(user.user_metadata?.full_name||user.user_metadata?.name||user.user_metadata?.preferred_name||'').trim();
-  let phone=user.phone||null;
-  let memberships=[],history=[];
-  if(isSetup(env)){
-   const identities=await dbRequest(env,`msg91_phone_identities?auth_user_id=eq.${encodeURIComponent(user.id)}&select=phone_e164&limit=1`).catch(()=>[]);
-   phone=identities?.[0]?.phone_e164||phone;
-   memberships=await dbRequest(env,`memberships?user_id=eq.${encodeURIComponent(user.id)}&select=plan,expires_at&limit=1`);
-   history=await dbRequest(env,`payment_orders?user_id=eq.${encodeURIComponent(user.id)}&state=eq.paid&select=plan,amount_paise,paid_at,razorpay_order_id&order=paid_at.desc&limit=10`);
-  }
+  // A basic account session is valid without the elevated database key.
+  // Until server-side membership storage is configured, report the free plan.
+  if(!isSetup(env))return json({user:{id:user.id,email:user.email||null,phone:user.phone||null},plan:'free',expiresAt:null,history:[]});
+  const memberships=await dbRequest(env,`memberships?user_id=eq.${encodeURIComponent(user.id)}&select=plan,expires_at&limit=1`);
+  const history=await dbRequest(env,`payment_orders?user_id=eq.${encodeURIComponent(user.id)}&state=eq.paid&select=plan,amount_paise,paid_at,razorpay_order_id&order=paid_at.desc&limit=10`);
   const current=memberships?.[0];const active=current&&Date.parse(current.expires_at)>Date.now();
-  return json({user:{id:user.id,email:user.email||null,phone,fullName:fullName||null,createdAt:user.created_at||null,emailVerified:Boolean(user.email_confirmed_at),phoneVerified:Boolean(phone)},plan:active?getPlan(current.plan).id:'free',expiresAt:active?current.expires_at:null,history:history||[]});
+  return json({user:{id:user.id,email:user.email},plan:active?getPlan(current.plan).id:'free',expiresAt:active?current.expires_at:null,history:history||[]});
  }
  if(path==='/api/use-quota' && req.method==='POST'){
   if(!isPaymentReady(env))return json({ok:true,unmetered:true}); // Free tools remain usable before paid launch

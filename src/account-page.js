@@ -13,9 +13,7 @@ const redirectUrl=()=>{
  if(hostname==='crakkerxai.com'||hostname==='www.crakkerxai.com')return 'https://www.crakkerxai.com/account/';
  return `${location.origin}/account/`;
 };
-const profileRedirectUrl=()=>`${redirectUrl()}?view=profile`;
 let mode='login';let authMethod='email-otp';let otpContext=null;let client;let config;let pending='';let buying=false;let activeAccountSession=null;let selectedPhoneOtpChannel='whatsapp';let identityLinkContext=null;let selectedIdentityChannel='whatsapp';let selectedIdentityEmailChannel='whatsapp';
-let passwordHumanChallenge=null;let passwordHumanState='idle';let passwordHumanTimer=null;let passwordHumanStartedAt=0;let passwordHumanHeldMs=0;let accountPreferences=null;
 const EMAIL_OTP_PASSWORD_SETUP_PROOF_KEY='cx_email_otp_password_setup_proof_v1';
 function storeEmailOtpPasswordSetupProof(userId){
  try{sessionStorage.setItem(EMAIL_OTP_PASSWORD_SETUP_PROOF_KEY,JSON.stringify({userId,verifiedAt:Date.now()}));}catch{}
@@ -49,10 +47,7 @@ function setMethod(next){
  hide('password-login-identity',!(isPassword&&mode==='login'));
  hide('phone-field',!showPhone);hide('email-field',!showEmail);hide('password-field',!isPassword);
  hide('phone-otp-channel-field',!isPhoneOtp);
- hide('password-human-check',!(isPassword&&mode==='login'));
- hide('msg91-captcha',isPassword&&mode==='login');
  if(isPhoneOtp)refreshPhoneOtpChannels();
- if(isPassword&&mode==='login')void loadPasswordHumanChallenge();else resetPasswordHumanCheck();
  el('auth-phone').required=showPhone;el('auth-email').required=showEmail;el('auth-password').required=isPassword;
  el('auth-password').autocomplete=mode==='signup'?'new-password':'current-password';
  el('auth-phone').autocomplete='tel';
@@ -598,7 +593,6 @@ async function refreshIdentityManagement(session){
  }catch(error){
   label('identity-link-status','Could not load linked sign-in methods. Refresh the page to try again.');
   console.error('Account identity status could not be loaded:',error);
-  return null;
  }
 }
 async function requestIdentityPhoneLinkOtp(){
@@ -674,52 +668,41 @@ async function render(){
  if(passwordPolicy?.mustSetPassword){showPasswordSetup(passwordPolicy);return;}
  hide('password-setup');hide('password-security-unavailable');hide('auth-panel');hide('otp-panel');hide('dashboard',false);
  if(el('account-heading-title'))el('account-heading-title').innerHTML='Your <span>workspace.</span>';
- if(el('account-heading-subtitle'))el('account-heading-subtitle').textContent='Manage your profile, connected sign-in methods, membership and personal settings.';
+ if(el('account-heading-subtitle'))el('account-heading-subtitle').textContent='Manage your membership, payment history and profile preferences. All eight PDF and image tools are available from the homepage.';
  const user=session.user;
- const fullName=String(user.user_metadata?.full_name||user.user_metadata?.name||user.user_metadata?.preferred_name||user.email?.split('@')[0]||'Workspace').trim();
- label('profile-name',fullName);
+ label('profile-name',user.user_metadata?.full_name||user.user_metadata?.name||user.email||user.phone||'Workspace');
+ label('profile-email',user.email||user.phone||'');
  await refreshIdentityManagement(session);
  // Keep the authenticated dashboard visible even if a non-critical analytics widget fails.
  // A dashboard rendering error must never send an already signed-in user back to the login form.
  try{renderUsageDashboard();}
  catch(error){console.error('Workspace analytics could not be rendered:',error);notice('You are signed in. Some workspace activity panels could not be loaded; refresh the page to try again.',true);}
- let accountData=null;
- try{accountData=await apiRequest('/api/me',session.access_token);}catch(error){console.warn('Profile and membership details could not be loaded:',error?.message||error);}
- const identity=await apiRequest('/api/auth/identity-status',session.access_token).catch(()=>null);
- const profileName=String(accountData?.user?.fullName||fullName||'Workspace');
- const email=String(accountData?.user?.email||identity?.email||user.email||'');
- const phone=String(identity?.phone||accountData?.user?.phone||user.phone||'');
- const initials=profileName.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]?.toUpperCase()||'').join('')||'U';
- label('profile-name',profileName);
- label('dash-user-name',profileName);label('dash-menu-user-name',profileName);label('dash-menu-user-email',email||phone||'');label('dash-avatar',initials);label('dash-profile-avatar',initials);
- label('dash-profile-fullname',profileName);label('dash-profile-name-detail',profileName);
- label('dash-profile-email',email||'No email linked');label('dash-profile-email-detail',email||'Not linked');
- label('dash-profile-phone-detail',phone||'Not linked');
- label('dash-profile-email-status',identity?.emailVerified?'Verified':email?'Pending verification':'Not linked');
- label('dash-profile-phone-status',identity?.phoneVerified?'Verified':phone?'Linked':'Not linked');
- if(el('profile-display-name'))el('profile-display-name').value=profileName;
- const activePlan=accountData?.plan||'free';
- const planLabel=PLANS[activePlan]?.label||'Free';
- label('plan-name',planLabel);label('dash-user-plan',planLabel+' Plan');label('dash-plan-pill',planLabel+' Plan');label('dash-plan-view-label',planLabel+' Plan');label('dash-plan-view-current',planLabel+' Plan');label('dash-profile-plan-detail',planLabel+' Plan');
- label('dash-profile-expiry-detail',accountData?.expiresAt?new Date(accountData.expiresAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'No expiry');
- label('plan-expires',accountData?.expiresAt?new Date(accountData.expiresAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'Free tools remain available');
- const paymentSource=el('payment-history');
- if(paymentSource){
-  paymentSource.replaceChildren();
-  if(!accountData?.history?.length){const p=document.createElement('p');p.textContent=config.paymentsEnabled?'No payments yet.':'Payments are not active yet. No transactions to show.';paymentSource.append(p);}
-  else for(const entry of accountData.history){
+ const active=config.paymentsEnabled
+  ? await apiRequest('/api/me',session.access_token).catch(e=>{notice('Could not load membership information: '+e.message,true);return null;})
+  : null;
+ if(!config.paymentsEnabled){
+  label('plan-name','Free');label('plan-expires','Free tools remain available');label('dash-user-plan','Free Plan');label('dash-plan-pill','Free Plan');label('dash-plan-view-label','Free Plan');label('dash-plan-view-current','Free Plan');label('dash-profile-plan-detail','Free Plan');
+  const list=el('payment-history');list.replaceChildren();
+  const p=document.createElement('p');p.textContent='Payments are not active yet. No transactions to show.';list.append(p);
+ }
+ if(active){
+  label('plan-name',PLANS[active.plan]?.label||'Free');label('dash-user-plan',(PLANS[active.plan]?.label||'Free')+' Plan');label('dash-plan-pill',(PLANS[active.plan]?.label||'Free')+' Plan');label('dash-plan-view-label',(PLANS[active.plan]?.label||'Free')+' Plan');label('dash-plan-view-current',(PLANS[active.plan]?.label||'Free')+' Plan');label('dash-profile-plan-detail',(PLANS[active.plan]?.label||'Free')+' Plan');
+  label('plan-expires',active.expiresAt?new Date(active.expiresAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'Free tools remain available');
+  const list=el('payment-history');list.replaceChildren();
+  if(!active.history?.length){const p=document.createElement('p');p.textContent='No payments yet.';list.append(p);}
+  else for(const entry of active.history){
    const row=document.createElement('div');row.className='history-row';
-   const a=document.createElement('strong');a.textContent=`${PLANS[entry.plan]?.label||'Plan'} · ₹${(Number(entry.amount_paise||0)/100).toFixed(2)}`;
-   const b=document.createElement('span');b.textContent=entry.paid_at?new Date(entry.paid_at).toLocaleDateString('en-IN'):'Paid';row.append(a,b);paymentSource.append(row);
+   const a=document.createElement('strong');a.textContent=`${PLANS[entry.plan]?.label||'Plan'} · ₹${(entry.amount_paise/100).toFixed(2)}`;
+   const b=document.createElement('span');b.textContent=entry.paid_at?new Date(entry.paid_at).toLocaleDateString('en-IN'):'Paid';
+   row.append(a,b);list.append(row);
   }
  }
- const planPaymentTarget=el('dash-plan-payment-history');
+ const paymentSource=el('payment-history'),planPaymentTarget=el('dash-plan-payment-history');
  if(paymentSource&&planPaymentTarget)planPaymentTarget.replaceChildren(...Array.from(paymentSource.childNodes).map(node=>node.cloneNode(true)));
  hide('pending-plan-box',!pending);
- if(pending)label('pending-plan-text',`Selected: ${PLANS[pending].label} · ₹${PLANS[pending].price} for 30 days, one-time payment.`);
+ if(pending){label('pending-plan-text',`Selected: ${PLANS[pending].label} · ₹${PLANS[pending].price} for 30 days, one-time payment.`);}
  hide('payments-unavailable',config.paymentsEnabled);
- if(el('checkout-btn'))el('checkout-btn').disabled=!config.paymentsEnabled||buying;
- await loadAccountPreferences(session);
+ el('checkout-btn').disabled=!config.paymentsEnabled||buying;
  if(location.hash==='#payment-history')requestAnimationFrame(()=>el('payment-history-title')?.scrollIntoView({block:'start'}));
 }
 function showReset(){hide('auth-panel');hide('dashboard');hide('password-setup');hide('password-security-unavailable');hide('password-recovery',false);hide('account-loading');}
@@ -773,7 +756,7 @@ async function requestOtp(){
   el('otp-code').focus();return;
  }
  const options={shouldCreateUser:mode==='signup',data:mode==='signup'&&full_name?{full_name}:{}};
- const {error}=await client.auth.signInWithOtp({email:value,options:{...options,emailRedirectTo:profileRedirectUrl()}});
+ const {error}=await client.auth.signInWithOtp({email:value,options:{...options,emailRedirectTo:redirectUrl()}});
  if(error)throw error;
  otpContext={kind:'email',value,mode,sentAt:Date.now()};
  label('otp-target',maskOtpDestination('email',value));
@@ -798,7 +781,7 @@ async function verifyOtp(event){
     }});
     const signupContext=otpContext;
     const {error}=await client.auth.signInWithOtp({email:signupContext.email,options:{
-     shouldCreateUser:true,data:signupContext.full_name?{full_name:signupContext.full_name}:{},emailRedirectTo:profileRedirectUrl()
+     shouldCreateUser:true,data:signupContext.full_name?{full_name:signupContext.full_name}:{},emailRedirectTo:redirectUrl()
     }});
     if(error)throw error;
     otpContext={kind:'signup-email',value:signupContext.email,mode:'signup',pendingSignupId:pending.pendingSignupId,sentAt:Date.now()};
@@ -818,7 +801,7 @@ async function verifyOtp(event){
    const linked=await apiRequest('/api/auth/msg91/link-signup',result.data.session.access_token,{method:'POST',body:{pendingSignupId:signupContext.pendingSignupId}});
    if(!linked.linked)throw new Error('Email verified, but your mobile number was not linked. Please retry account verification.');
    storeEmailOtpPasswordSetupProof(result.data.session.user.id);
-   otpContext=null;window.location.assign('/account/?view=profile');return;
+   otpContext=null;window.location.assign('/account/');return;
   }else{
    result=await client.auth.verifyOtp({email:otpContext.value,token,type:'email'});
   }
@@ -826,7 +809,7 @@ async function verifyOtp(event){
   if(!result.data?.session)throw new Error('OTP was not verified. Please try again.');
   if(otpContext.kind==='email')storeEmailOtpPasswordSetupProof(result.data.session.user.id);
   else clearEmailOtpPasswordSetupProof();
-  otpContext=null;window.location.assign('/account/?view=profile');return;
+  otpContext=null;window.location.assign('/account/');return;
  }catch(e){
   if(msg91ProofVerified&&otpContext?.kind==='identity-email-link-phone'){
    const channel=otpContext.channel==='whatsapp'?'WhatsApp':'SMS';
@@ -857,73 +840,11 @@ async function resendOtp(){
    notice((otpContext.channel==='whatsapp'?'WhatsApp':'SMS')+' OTP resent. Use the latest code.');return;
   }
   const {value,mode:otpMode}=otpContext;
-  const {error}=await client.auth.signInWithOtp({email:value,options:{emailRedirectTo:profileRedirectUrl(),shouldCreateUser:otpMode==='signup'}});
+  const {error}=await client.auth.signInWithOtp({email:value,options:{emailRedirectTo:redirectUrl(),shouldCreateUser:otpMode==='signup'}});
   if(error)throw error;
   otpContext.sentAt=Date.now();notice('New OTP requested. Use the latest code.');
  }catch(e){notice(e.message||'Could not resend OTP.',true);}
 }
-const PASSWORD_HUMAN_HOLD_MS=1600;
-function resetPasswordHumanCheck(clearChallenge=true){
- if(passwordHumanTimer)clearTimeout(passwordHumanTimer);
- passwordHumanTimer=null;passwordHumanStartedAt=0;passwordHumanHeldMs=0;passwordHumanState='idle';
- if(clearChallenge)passwordHumanChallenge=null;
- const button=el('password-human-hold');
- button?.classList.remove('is-holding','is-verified');
- if(button)button.disabled=true;
- label('password-human-badge','Not verified');
- label('password-human-status','Preparing your human check…');
-}
-async function loadPasswordHumanChallenge(force=false){
- const panel=el('password-human-check');
- if(!panel||panel.classList.contains('hidden')||mode!=='login'||authMethod!=='password')return;
- if(!force&&passwordHumanChallenge&&Date.parse(passwordHumanChallenge.expiresAt)>Date.now()&&passwordHumanState!=='used')return;
- resetPasswordHumanCheck(true);
- passwordHumanState='loading';
- label('password-human-badge','Loading');
- label('password-human-status','Preparing your human check…');
- try{
-  const result=await apiRequest('/api/auth/password-human-challenge',null,{method:'POST',body:{kind:'pool_hold_confirm'}});
-  if(!result?.challengeId||!result?.expiresAt)throw new Error('Human verification could not be started. Refresh and try again.');
-  passwordHumanChallenge=result;passwordHumanState='ready';
-  const button=el('password-human-hold');if(button){button.disabled=false;button.classList.remove('is-holding','is-verified');}
-  label('password-human-badge','Ready');
-  label('password-human-status','Press and hold the pool table for 1.6 seconds.');
- }catch(error){
-  passwordHumanChallenge=null;passwordHumanState='error';
-  const button=el('password-human-hold');if(button)button.disabled=true;
-  label('password-human-badge','Unavailable');
-  label('password-human-status',error?.message||'Human verification is unavailable. Please refresh and try again.');
- }
-}
-function beginPasswordHumanHold(event){
- if(passwordHumanState!=='ready'||!passwordHumanChallenge)return;
- if(event?.type==='keydown'&&(event.repeat||![' ','Enter'].includes(event.key)))return;
- event?.preventDefault?.();
- if(event?.type==='pointerdown'&&event.currentTarget?.setPointerCapture){try{event.currentTarget.setPointerCapture(event.pointerId);}catch{}}
- if(passwordHumanTimer)clearTimeout(passwordHumanTimer);
- passwordHumanStartedAt=Date.now();passwordHumanState='holding';
- const button=el('password-human-hold');button?.classList.add('is-holding');
- label('password-human-badge','Hold');
- label('password-human-status','Keep holding…');
- passwordHumanTimer=setTimeout(()=>{
-  if(passwordHumanState!=='holding')return;
-  passwordHumanHeldMs=Math.max(PASSWORD_HUMAN_HOLD_MS,Date.now()-passwordHumanStartedAt);
-  passwordHumanState='verified';passwordHumanTimer=null;
-  const control=el('password-human-hold');control?.classList.remove('is-holding');control?.classList.add('is-verified');if(control)control.disabled=true;
-  label('password-human-badge','Verified');
-  label('password-human-status','Human check complete. You can now sign in.');
- },PASSWORD_HUMAN_HOLD_MS);
-}
-function endPasswordHumanHold(event){
- if(event?.type==='keyup'&&![' ','Enter'].includes(event.key))return;
- if(passwordHumanState!=='holding')return;
- if(passwordHumanTimer)clearTimeout(passwordHumanTimer);
- passwordHumanTimer=null;passwordHumanState='ready';passwordHumanStartedAt=0;
- el('password-human-hold')?.classList.remove('is-holding');
- label('password-human-badge','Not verified');
- label('password-human-status','Keep holding until the cue ball reaches the pocket.');
-}
-
 async function authAction(event){
  event.preventDefault();notice('');
  if(authMethod==='password')clearEmailOtpPasswordSetupProof();
@@ -934,32 +855,28 @@ async function authAction(event){
   if(mode==='signup'){
    const email=normalizeOtpEmail(el('auth-email').value);requirePassword(password);
    const full_name=el('auth-name').value.trim().slice(0,80);
-   const {data,error}=await client.auth.signUp({email,password,options:{emailRedirectTo:profileRedirectUrl(),data:{full_name}}});
+   const {data,error}=await client.auth.signUp({email,password,options:{emailRedirectTo:redirectUrl(),data:{full_name}}});
    if(error)throw error;
    if(!data.session)notice('Check your verification email. Your password is saved; sign in after email verification.');
-   else{window.location.assign('/account/?view=profile');return;}
-  }else{
-   if(passwordHumanState!=='verified'||!passwordHumanChallenge||Date.parse(passwordHumanChallenge.expiresAt)<=Date.now()){
-    throw new Error('Complete the human check before signing in.');
-   }
-   const identityType=el('password-identity-type').value;
-   const identity=identityType==='phone'?normalizeOtpPhone(el('auth-phone').value):normalizeOtpEmail(el('auth-email').value);
-   const sessionResult=await apiRequest('/api/auth/password-login',null,{method:'POST',body:{identityType,identity,password,challengeId:passwordHumanChallenge.challengeId,heldMs:passwordHumanHeldMs}});
-   resetPasswordHumanCheck(true);
+   else{window.location.assign('/account/');return;}
+  }else if(el('password-identity-type').value==='phone'){
+   const phone=normalizeOtpPhone(el('auth-phone').value);
+   const sessionResult=await apiRequest('/api/auth/phone-password',null,{method:'POST',body:{phone,password}});
    const {error}=await client.auth.setSession({access_token:sessionResult.access_token,refresh_token:sessionResult.refresh_token});
    if(error)throw error;
-   window.location.assign('/account/?view=profile');return;
+   window.location.assign('/account/');return;
+  }else{
+   const email=normalizeOtpEmail(el('auth-email').value);
+   const {error}=await client.auth.signInWithPassword({email,password});if(error)throw error;
+   window.location.assign('/account/');return;
   }
- }catch(e){
-  notice(e.message||'Something went wrong. Please try again.',true);
-  if(authMethod==='password'&&mode==='login')await loadPasswordHumanChallenge(true);
- }
+ }catch(e){notice(e.message||'Something went wrong. Please try again.',true);}
  finally{button.disabled=false;}
 }
 async function social(provider){
  clearEmailOtpPasswordSetupProof();
  notice('');
- try{const {error}=await client.auth.signInWithOAuth({provider,options:{redirectTo:profileRedirectUrl()}});if(error)throw error;}
+ try{const {error}=await client.auth.signInWithOAuth({provider,options:{redirectTo:redirectUrl()}});if(error)throw error;}
  catch(e){
   notice(explainOAuthError(provider,e),true);
  }
@@ -1051,73 +968,6 @@ async function purchase(){
 }
 
 let cxRefreshScrollReady=false;
-const DEFAULT_ACCOUNT_PREFERENCES={theme:'dark',font_size:'normal',notifications_security:true,notifications_product:true,notifications_email:true,location_enabled:false,reduced_motion:false};
-function normaliseAccountPreferences(value={}){
- const prefs={...DEFAULT_ACCOUNT_PREFERENCES};
- if(value.theme==='dark'||value.theme==='light')prefs.theme=value.theme;
- if(['small','normal','large','extra-large'].includes(value.font_size))prefs.font_size=value.font_size;
- for(const key of ['notifications_security','notifications_product','notifications_email','location_enabled','reduced_motion'])if(typeof value[key]==='boolean')prefs[key]=value[key];
- return prefs;
-}
-function applyAccountPreferences(prefs){
- const value=normaliseAccountPreferences(prefs);
- document.documentElement.dataset.theme=value.theme;
- document.documentElement.dataset.fontSize=value.font_size;
- document.documentElement.classList.toggle('cx-reduced-motion',value.reduced_motion);
- try{localStorage.setItem('cx_theme',value.theme);}catch{}
- document.dispatchEvent(new CustomEvent('cx:themechange',{detail:{theme:value.theme}}));
-}
-function populateAccountPreferenceControls(prefs){
- const value=normaliseAccountPreferences(prefs);
- const set=(id,next)=>{const node=el(id);if(node)node.type==='checkbox'?node.checked=Boolean(next):node.value=next;};
- set('pref-theme',value.theme);set('pref-font-size',value.font_size);
- set('pref-notifications-security',value.notifications_security);set('pref-notifications-product',value.notifications_product);set('pref-notifications-email',value.notifications_email);set('pref-location-enabled',value.location_enabled);set('pref-reduced-motion',value.reduced_motion);
-}
-async function loadAccountPreferences(session){
- const status=el('account-settings-status');
- try{
-  const result=await apiRequest('/api/account/preferences',session.access_token);
-  accountPreferences=normaliseAccountPreferences(result?.preferences||{});
-  populateAccountPreferenceControls(accountPreferences);applyAccountPreferences(accountPreferences);
-  if(status)status.textContent='Your saved preferences are loaded.';
- }catch(error){
-  accountPreferences=normaliseAccountPreferences({});populateAccountPreferenceControls(accountPreferences);applyAccountPreferences(accountPreferences);
-  if(status)status.textContent='Settings could not be loaded from your account. Run the account preferences migration, then refresh.';
-  console.warn('Account preferences could not be loaded:',error?.message||error);
- }
-}
-async function saveAccountPreferences(){
- const button=el('account-settings-save'),status=el('account-settings-status');
- const session=await getSession();if(!session){if(status)status.textContent='Sign in again to save preferences.';return;}
- const value={
-  theme:el('pref-theme')?.value||'dark',font_size:el('pref-font-size')?.value||'normal',
-  notifications_security:Boolean(el('pref-notifications-security')?.checked),notifications_product:Boolean(el('pref-notifications-product')?.checked),notifications_email:Boolean(el('pref-notifications-email')?.checked),location_enabled:Boolean(el('pref-location-enabled')?.checked),reduced_motion:Boolean(el('pref-reduced-motion')?.checked)
- };
- if(button)button.disabled=true;if(status)status.textContent='Saving your settings…';
- try{
-  const result=await apiRequest('/api/account/preferences',session.access_token,{method:'PATCH',body:{preferences:value}});
-  accountPreferences=normaliseAccountPreferences(result?.preferences||value);populateAccountPreferenceControls(accountPreferences);applyAccountPreferences(accountPreferences);
-  if(status)status.textContent='Preferences saved to your account.';
- }catch(error){
-  if(status)status.textContent=error?.message||'Settings could not be saved. Please try again.';
- }finally{if(button)button.disabled=false;}
-}
-async function saveProfileName(event){
- event?.preventDefault();
- const input=el('profile-display-name'),button=el('profile-name-save'),status=el('profile-name-status');
- const fullName=String(input?.value||'').trim().replace(/\s+/g,' ').slice(0,80);
- if(!fullName){if(status)status.textContent='Enter a display name.';input?.focus();return;}
- if(button)button.disabled=true;if(status)status.textContent='Saving name…';
- try{
-  const {data,error}=await client.auth.updateUser({data:{full_name:fullName}});if(error)throw error;
-  const saved=String(data?.user?.user_metadata?.full_name||fullName);
-  label('profile-name',saved);label('dash-user-name',saved);label('dash-menu-user-name',saved);label('dash-profile-fullname',saved);label('dash-profile-name-detail',saved);
-  const initials=saved.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]?.toUpperCase()||'').join('')||'U';label('dash-avatar',initials);label('dash-profile-avatar',initials);
-  if(status)status.textContent='Your profile name has been updated.';
- }catch(error){if(status)status.textContent=error?.message||'Could not update your profile name.';}
- finally{if(button)button.disabled=false;}
-}
-
 function initRefreshScrollWidgets(){
  if(cxRefreshScrollReady)return;
  cxRefreshScrollReady=true;
@@ -1202,10 +1052,6 @@ export async function initAccount(){
  el('reset-form').addEventListener('submit',reset);
  el('password-setup-form').addEventListener('submit',setInitialOrRenewedPassword);
  el('password-identity-type').addEventListener('change',()=>setMethod('password'));
- const humanHold=el('password-human-hold');
- if(humanHold){humanHold.addEventListener('pointerdown',beginPasswordHumanHold);humanHold.addEventListener('pointerup',endPasswordHumanHold);humanHold.addEventListener('pointercancel',endPasswordHumanHold);humanHold.addEventListener('keydown',beginPasswordHumanHold);humanHold.addEventListener('keyup',endPasswordHumanHold);humanHold.addEventListener('contextmenu',event=>event.preventDefault());}
- el('account-settings-save')?.addEventListener('click',saveAccountPreferences);
- el('profile-name-form')?.addEventListener('submit',saveProfileName);
  el('identity-send-phone-otp')?.addEventListener('click',requestIdentityPhoneLinkOtp);
  el('identity-verify-phone-otp')?.addEventListener('click',verifyIdentityPhoneLinkOtp);
  el('identity-send-email-link')?.addEventListener('click',requestIdentityEmailLink);

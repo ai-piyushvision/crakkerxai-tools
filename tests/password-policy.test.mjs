@@ -91,38 +91,32 @@ test('password-policy allows a password younger than 60 days',async()=>{
   }finally{globalThis.fetch=oldFetch;}
 });
 
-test('phone-password sign-in requires a fresh human challenge, resolves the verified phone identity and exchanges password with Supabase',async()=>{
-  const oldFetch=globalThis.fetch;const calls=[];const challengeId='e3e5bca6-9ab6-48f1-a2c0-89d6b8d0cb52';
+test('phone-password sign-in resolves the verified phone identity and exchanges password with Supabase',async()=>{
+  const oldFetch=globalThis.fetch;const calls=[];
   globalThis.fetch=async (url,options={})=>{
-    const parsed=new URL(url);const method=options.method||'GET';calls.push({url:String(url),method});
-    if(parsed.pathname==='/rest/v1/auth_human_challenges'&&method==='GET')return response([{challenge_id:challengeId,created_at:new Date(Date.now()-2200).toISOString(),expires_at:new Date(Date.now()+120000).toISOString()}]);
-    if(parsed.pathname==='/rest/v1/auth_human_challenges'&&method==='PATCH')return response([{challenge_id:challengeId,used_at:new Date().toISOString()}]);
+    const parsed=new URL(url);calls.push({url:String(url),method:options.method||'GET'});
     if(parsed.pathname==='/rest/v1/msg91_phone_identities')return response([{auth_user_id:'user-mobile-1'}]);
     if(parsed.pathname==='/auth/v1/admin/users/user-mobile-1')return response({user:{id:'user-mobile-1',email:'mobile-123@auth.crakkerxai.com'}});
     if(parsed.pathname==='/auth/v1/token')return response({access_token:'access-token',refresh_token:'refresh-token',expires_in:3600,token_type:'bearer'});
     throw new Error(`Unexpected request ${url}`);
   };
   try{
-    const req=new Request('https://www.crakkerxai.com/api/auth/phone-password',{method:'POST',headers:{'Content-Type':'application/json','CF-Connecting-IP':'203.0.113.10'},body:JSON.stringify({phone:'+919876543210',password:'StrongPassword123',challengeId,heldMs:1700})});
+    const req=new Request('https://www.crakkerxai.com/api/auth/phone-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+919876543210',password:'StrongPassword123'})});
     const res=await worker.fetch(req,env);const body=await res.json();
     assert.equal(res.status,200);assert.equal(body.access_token,'access-token');assert.equal(body.refresh_token,'refresh-token');
     assert.ok(calls.some(call=>call.url.includes('/rest/v1/msg91_phone_identities')));
     assert.ok(calls.some(call=>call.url.includes('/auth/v1/token?grant_type=password')));
-    assert.ok(calls.some(call=>call.method==='PATCH'&&call.url.includes('/rest/v1/auth_human_challenges')));
   }finally{globalThis.fetch=oldFetch;}
 });
 
-test('phone-password endpoint does not reveal whether a phone identity exists after a valid human challenge',async()=>{
-  const oldFetch=globalThis.fetch;const challengeId='e3e5bca6-9ab6-48f1-a2c0-89d6b8d0cb52';
-  globalThis.fetch=async (url,options={})=>{
-    const parsed=new URL(url);const method=options.method||'GET';
-    if(parsed.pathname==='/rest/v1/auth_human_challenges'&&method==='GET')return response([{challenge_id:challengeId,created_at:new Date(Date.now()-2200).toISOString(),expires_at:new Date(Date.now()+120000).toISOString()}]);
-    if(parsed.pathname==='/rest/v1/auth_human_challenges'&&method==='PATCH')return response([{challenge_id:challengeId,used_at:new Date().toISOString()}]);
-    if(parsed.pathname==='/rest/v1/msg91_phone_identities')return response([]);
+test('phone-password endpoint does not reveal whether a phone identity exists',async()=>{
+  const oldFetch=globalThis.fetch;
+  globalThis.fetch=async url=>{
+    if(new URL(url).pathname==='/rest/v1/msg91_phone_identities')return response([]);
     throw new Error(`Unexpected request ${url}`);
   };
   try{
-    const req=new Request('https://www.crakkerxai.com/api/auth/phone-password',{method:'POST',headers:{'Content-Type':'application/json','CF-Connecting-IP':'203.0.113.10'},body:JSON.stringify({phone:'+919876543210',password:'IncorrectPassword',challengeId,heldMs:1700})});
+    const req=new Request('https://www.crakkerxai.com/api/auth/phone-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+919876543210',password:'IncorrectPassword'})});
     const res=await worker.fetch(req,env);const body=await res.json();
     assert.equal(res.status,401);assert.equal(body.error,'Mobile number or password is incorrect.');
   }finally{globalThis.fetch=oldFetch;}
@@ -201,9 +195,7 @@ test('account flow contains forced password setup, mobile password login and 60-
   assert.match(account,/requiresCurrentPasswordForSetup\(policy,\{verifiedEmailOtp\}\)/);
   assert.match(account,/storeEmailOtpPasswordSetupProof\(result\.data\.session\.user\.id\)/);
   assert.match(account,/legacyOtpSetup/);
-  assert.match(account,/apiRequest\('\/api\/auth\/password-login'/);
-  assert.match(account,/apiRequest\('\/api\/auth\/password-human-challenge'/);
-  assert.match(html,/id="password-human-check"/);
+  assert.match(account,/apiRequest\('\/api\/auth\/phone-password'/);
   assert.match(account,/client\.auth\.updateUser\(\{password\}\)/);
   assert.match(account,/client\.auth\.signOut\(\)/);
   assert.match(html,/id="password-setup-form"/);
