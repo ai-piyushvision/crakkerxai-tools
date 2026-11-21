@@ -1,0 +1,49 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#fbfcf7"/><meta name="description" content="Sign up, log in, recover your password and manage CrakkerXworld.AI membership."/>
+<meta name="google-adsense-account" content="ca-pub-8574777140654469"/>
+<link rel="canonical" href="https://www.crakkerxai.com/account/"/><meta property="og:type" content="website"/><meta property="og:title" content="Login &amp; My Account"/><meta property="og:description" content="Sign up, log in, recover your password and manage CrakkerXworld.AI membership."/>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml"/>
+<title>Login &amp; My Account | CrakkerXworld.AI</title>
+
+</head><body data-tool="" class="account-body">
+<header class="site-header"><div class="container header-inner"><a class="brand" href="../" aria-label="CrakkerXworld.AI home"><span class="brand-icon"><svg class="icon " viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11V8a2 2 0 0 1 2-2h16"/><path d="m7 22-4-4 4-4"/><path d="M21 13v3a2 2 0 0 1-2 2H3"/></svg></span><span>CrakkerX<span class="brand-green">world</span><span class="brand-ai">.AI</span></span></a>
+<nav aria-label="Main navigation" class="main-nav"><a href="../#tools">All tools</a><a href="../how-it-works/">How it works</a><a href="../privacy/">Privacy</a><a href="../pricing/">Pricing</a></nav>
+<div class="account-nav" data-account-nav>
+  <a class="always-free" data-login-link href="../account/"><span class="green-dot"></span> Login / Account</a>
+  <div class="account-menu hidden" data-account-menu>
+    <button type="button" class="profile-trigger" data-profile-trigger aria-expanded="false" aria-controls="site-profile-popover" aria-label="Open account menu">
+      <span class="profile-avatar" data-profile-avatar>U</span><span class="profile-trigger-name" data-profile-name>My account</span><span class="profile-chevron" aria-hidden="true">⌄</span>
+    </button>
+    <div class="profile-popover hidden" id="site-profile-popover" data-profile-popover>
+      <div class="profile-popover-head"><strong data-profile-fullname>My account</strong><small data-profile-email></small><span class="profile-plan" data-profile-plan>Free plan</span></div>
+      <a class="profile-menu-item" href="../account/">My profile &amp; account</a>
+      <button type="button" class="profile-menu-item" data-notification-toggle aria-expanded="false">Notifications <span class="profile-notify-count">0</span></button>
+      <div class="profile-notification-box hidden" data-notification-box role="status">No notifications yet. Account alerts will appear here when available.</div>
+      <a class="profile-menu-item" href="../account/#payment-history">Payment history</a>
+      <a class="profile-menu-item" href="../pricing/">Plans &amp; billing</a>
+      <a class="profile-menu-item" href="../#tools">All tools</a>
+      <button type="button" class="profile-menu-item profile-signout" data-profile-signout>Log out</button>
+    </div>
+  </div>
+</div></div></header>
+<main><section class="account-page container"><div class="account-heading"><p class="eyebrow">CrakkerXworld.AI ACCOUNT</p><h1 id="account-heading-title">Welcome <span>back.</span></h1><p id="account-heading-subtitle">Sign up or log in with email OTP, mobile OTP, password, Google or GitHub. Free tools never require an account.</p></div>
+<div id="account-notice" class="account-notice hidden" role="status" aria-live="polite"></div><div id="account-loading" class="account-loading">Checking account configuration…</div>
+<div id="auth-panel" class="auth-panel hidden"><div class="auth-card">
+<div class="auth-tabs" role="tablist" aria-label="Account access"><button id="tab-login" class="auth-tab active" type="button">Log in</button><button id="tab-signup" class="auth-tab" type="button">Create account</button></div>
+<div class="auth-methods" aria-label="Choose sign-in method"><button class="auth-method active" id="method-email-otp" type="button" aria-pressed="true">Email OTP</button><button class="auth-method" id="method-phone-otp" type="button" aria-pressed="false">Mobile OTP</button><button class="auth-method" id="method-password" type="button" aria-pressed="false">Password</button></div>
+<form id="auth-form" class="auth-form">
+<div id="name-field" class="auth-field hidden"><label for="auth-name">Your name (optional)</label><input id="auth-name" name="name" type="text" autocomplete="name" maxlength="80" placeholder="Full name" /></div>
+<div class="auth-field" id="email-field"><label for="auth-email">Email address</label><input id="auth-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" /></div>
+<div class="auth-field hidden" id="phone-field"><label for="auth-phone">Mobile number</label><input id="auth-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+91 9876543210" /><p class="auth-hint">For India, enter a 10-digit mobile number. International numbers need +country code. Standard SMS charges may apply.</p></div>
+<div class="auth-field hidden" id="password-field"><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="10" placeholder="At least 10 characters" /></div>
+<button id="auth-submit" class="primary-btn full-width" type="submit">Send email OTP</button></form><button id="forgot-password" class="text-action hidden" type="button">Forgot password?</button>
+<div class="auth-divider"><span>or continue with</span></div><div class="social-actions"><button id="google-login" type="button" class="social-btn">Google</button><button id="github-login" type="button" class="social-btn">GitHub</button></div>
+<p class="auth-small">Accounts are activated only after OTP verification or successful authentication. By continuing, you agree to our <a href="../terms/">Terms</a> and <a href="../privacy/">Privacy policy</a>.</p></div></div>
+<div id="otp-panel" class="auth-panel hidden"><div class="auth-card"><h2>Verify your one-time code</h2><p class="auth-help">Enter the code sent to <strong id="otp-target"></strong>.</p><form id="otp-form" class="auth-form"><div class="auth-field"><label for="otp-code">Verification code</label><input id="otp-code" name="otp-code" type="text" inputmode="numeric" pattern="[0-9]{6,8}" minlength="6" maxlength="8" autocomplete="one-time-code" placeholder="6–8 digit code" required /></div><button class="primary-btn full-width" type="submit" id="otp-verify-btn">Verify & continue</button></form><div class="otp-actions"><button id="otp-resend" class="text-action" type="button">Resend code</button><button id="otp-change" class="text-action" type="button">Change email / mobile</button></div><p class="auth-hint">Never share your OTP with anyone. Repeated requests can be rate-limited.</p></div></div>
+<div id="password-recovery" class="auth-panel hidden"><div class="auth-card"><h2>Choose a new password</h2><form id="reset-form" class="auth-form"><div class="auth-field"><label for="reset-password">New password</label><input id="reset-password" type="password" minlength="10" autocomplete="new-password" required /></div><button class="primary-btn full-width" type="submit">Update password</button></form></div></div>
+<div id="dashboard" class="dashboard hidden"><div class="dashboard-card"><div class="dashboard-top"><div><p class="eyebrow">YOUR PROFILE</p><h2 id="profile-name">My account</h2><p id="profile-email"></p></div><button type="button" class="outlined-btn" id="logout">Log out</button></div><div class="status-grid"><div class="status-tile"><span>Current plan</span><strong id="plan-name">Free</strong></div><div class="status-tile"><span>Access until</span><strong id="plan-expires">Free tools remain available</strong></div></div><div id="pending-plan-box" class="pending-plan hidden"><p id="pending-plan-text"></p><button id="checkout-btn" type="button" class="primary-btn">Pay securely with Razorpay</button></div><p id="payments-unavailable" class="fine-print hidden">Live payments are not configured yet. No money will be charged.</p><div class="dashboard-actions"><a class="outlined-btn" href="../pricing/">View all plans</a><a class="outlined-btn" href="../#tools">Use free tools</a></div><h3 id="payment-history-title">Payment history</h3><div id="payment-history" class="payment-history"><p>No payments yet.</p></div></div></div></section></main>
+<footer class="site-footer"><div class="container footer-grid"><div><a class="brand footer-brand" href="../"><span class="brand-icon"><svg class="icon " viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11V8a2 2 0 0 1 2-2h16"/><path d="m7 22-4-4 4-4"/><path d="M21 13v3a2 2 0 0 1-2 2H3"/></svg></span><span>CrakkerX<span class="brand-green">world</span><span class="brand-ai">.AI</span></span></a><p>Little tools. Big time savers.<br/>Private PDF &amp; image utilities for everyday tasks.</p></div>
+<div class="footer-links"><strong>Explore</strong><a href="../#tools">All tools</a><a href="../how-it-works/">How it works</a><a href="../about/">About</a><a href="../pricing/">Pricing</a><a href="../account/">My account</a></div>
+<div class="footer-links"><strong>Information</strong><a href="../privacy/">Privacy</a><a href="../terms/">Terms of use</a><a href="../sitemap.xml">Sitemap</a></div></div>
+<div class="container footer-bottom">© 2026 CrakkerXworld.AI. Made for simpler file tasks. Independent tools; not affiliated with Google.</div></footer>
+<script type="module" src="/src/main.js"></script></body></html>
