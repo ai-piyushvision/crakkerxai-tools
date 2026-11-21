@@ -1,0 +1,27 @@
+{
+  "name": "crakkerxai-tools",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CrakkerXworld.AI — Browser-based PDF and image converters with optional Python API services",
+  "scripts": {
+    "prepare:pages": "node scripts/generate-pages.mjs",
+    "dev": "npm run prepare:pages && vite --host 0.0.0.0",
+    "dev:python": "cd backend && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "build": "npm run prepare:pages && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "dependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "4.10.38",
+    "jszip": "3.10.1",
+    "@supabase/supabase-js": "^2.57.0"
+  },
+  "devDependencies": {
+    "vite": "6.3.5"
+  }
+}

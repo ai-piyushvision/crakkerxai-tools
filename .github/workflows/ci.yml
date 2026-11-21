@@ -1,0 +1,30 @@
+name: Check CrakkerXworld.AI source
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run frontend tests
+        run: npm test
+      - name: Build static frontend
+        run: npm run build
+      - name: Install Python backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run Python backend tests
+        run: python -m unittest discover -s backend/tests -v
